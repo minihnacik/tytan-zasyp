@@ -31,11 +31,7 @@
     gatherMs: 4500,
     handshakeEveryMs: 8000,
 
-    // WSPÓLNA BAZA DLA WSZYSTKICH GRACZY
-    // 1) Wrzuć folder dane + catalog.json na GitHub (publiczne repo)
-    // 2) Wklej tu RAW URL katalogu, np.:
-    //    https://raw.githubusercontent.com/TWOJ_NICK/tytan-zasyp/main/dane/catalog.json
-    catalogUrl: "",
+    catalogUrl: "https://raw.githubusercontent.com/minihnacik/tytan-zasyp/refs/heads/main/dane/catalog.json",
 
     images: []
   };
