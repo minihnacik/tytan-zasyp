@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Margonem — Tytan Jackpot
 // @namespace    https://margonem.pl/addon/tytan-jackpot
-// @version      2.2.5
+// @version      2.2.6
 // @description  Wspólne losowanie tytana. Przegrana = zasypanie ekranu zdjęciami z /dane.
 // @author       TytanJackpot
 // @match        https://*.margonem.pl/
@@ -225,17 +225,45 @@
     return list;
   }
 
-  function sendLocalChat() {
+  function sendLocalChat(text) {
+    if (!text || text.length > 160) return false;
+    try {
+      if (typeof window._g === "function") {
+        window._g("chat&channel=local", false, { c: text });
+        return true;
+      }
+    } catch (e) {}
+    try {
+      if (isNI() && window.Engine.chatController && typeof window.Engine.chatController.sendMessage === "function") {
+        window.Engine.chatController.sendMessage("local", text);
+        return true;
+      }
+    } catch (e) {}
     return false;
   }
 
+  function cleanTok(s) {
+    return String(s || "").replace(/[|\n\r]/g, " ").replace(/\s+/g, " ").trim().slice(0, 24);
+  }
+
   /* ===================== PROTOKOŁ ===================== */
-  function pack(obj) {
-    return PREFIX + " " + btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+  function packHello() {
+    return PREFIX + " " + [heroId(), cleanTok(heroNick()), cleanTok(myTeamKey())].join("|");
   }
   function unpack(text) {
     if (!text || text.indexOf(PREFIX) === -1) return null;
     const raw = text.slice(text.indexOf(PREFIX) + PREFIX.length).trim();
+    if (raw.indexOf("|") !== -1) {
+      const p = raw.split("|");
+      return {
+        v: 2,
+        t: "hello",
+        id: p[0] || "",
+        nick: p[1] || "",
+        team: p[2] || "",
+        label: p[1] || p[2] || ""
+      };
+    }
     try { return JSON.parse(decodeURIComponent(escape(atob(raw)))); }
     catch (e) {
       try { return JSON.parse(raw); } catch (e2) { return null; }
@@ -286,16 +314,7 @@
     const now = Date.now();
     if (now - state.lastHelloAt < 1500) return;
     state.lastHelloAt = now;
-    sendLocalChat(pack({
-      v: 2,
-      t: "hello",
-      id: heroId(),
-      nick: heroNick(),
-      team: myTeamKey(),
-      label: myTeamLabel(),
-      titan: titan ? String(titan.id) : "",
-      map: getMapName()
-    }));
+    sendLocalChat(packHello());
   }
 
   function iAmHost(peers) {
@@ -612,7 +631,7 @@
     root.id = "tj-root";
     root.innerHTML =
       '<div id="tj-panel">' +
-      "  <header><span>TYTAN ZASYP 2.2.5</span><button type=\"button\" id=\"tj-min\">+</button></header>" +
+      "  <header><span>TYTAN ZASYP 2.2.6</span><button type=\"button\" id=\"tj-min\">+</button></header>" +
       '  <div class="body" id="tj-body" style="display:none">' +
       '    <div id="tj-status">nasłuch…</div>' +
       '    <div id="tj-peers-title">Z dodatkiem na mapie</div>' +
@@ -632,7 +651,10 @@
       const open = body.style.display === "none";
       body.style.display = open ? "grid" : "none";
       btn.textContent = open ? "–" : "+";
-      if (open) renderPeers();
+      if (open) {
+        broadcastHello(state.lastTitan || listTitansOnMap()[0] || null);
+        renderPeers();
+      }
     });
     makeDraggable(document.getElementById("tj-panel"));
     renderPeers();
@@ -807,9 +829,7 @@
       if (titans[0] && (!state.lastTitan || String(state.lastTitan.id) !== String(titans[0].id))) {
         onTitanSpawn(titans[0]);
       }
-      if (state.session && !state.session.done) {
-        broadcastHello(state.lastTitan || titans[0] || null);
-      }
+      broadcastHello(state.lastTitan || titans[0] || null);
       renderPeers();
     }, CONFIG.handshakeEveryMs);
   }
